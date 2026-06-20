@@ -32,18 +32,19 @@ export async function getConnectedAccounts(): Promise<`0x${string}`[]> {
 
 export async function switchToStudionet(): Promise<void> {
   if (typeof window === "undefined" || !window.ethereum) return;
-  const studionetChainId = process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "61999";
+  const chainIdDecimal = parseInt(process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "61999", 10);
+  const chainIdHex = "0x" + chainIdDecimal.toString(16);
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: studionetChainId }],
+      params: [{ chainId: chainIdHex }],
     });
   } catch (err: unknown) {
     if ((err as { code?: number }).code === 4902) {
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: studionetChainId,
+          chainId: chainIdHex,
           chainName: "GenLayer Studionet",
           rpcUrls: [process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://studio.genlayer.com/api"],
           nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },

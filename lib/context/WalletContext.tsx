@@ -33,10 +33,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getConnectedAccounts().then((accounts) => {
+    getConnectedAccounts().then(async (accounts) => {
       if (accounts.length > 0) {
         setAddress(accounts[0]);
         setClientFromAddress(accounts[0]);
+        await switchToStudionet();
       }
     });
 
@@ -68,6 +69,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setIsConnecting(true);
     setError(null);
     try {
+      await switchToStudionet();
       const wallet = await connectInjectedWallet();
       setAddress(wallet.address);
       setChainId(wallet.chainId);
