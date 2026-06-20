@@ -32,7 +32,7 @@ export async function getConnectedAccounts(): Promise<`0x${string}`[]> {
 
 export async function switchToStudionet(): Promise<void> {
   if (typeof window === "undefined" || !window.ethereum) return;
-  const studionetChainId = process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "0x4BFB7";
+  const studionetChainId = process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "61999";
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
