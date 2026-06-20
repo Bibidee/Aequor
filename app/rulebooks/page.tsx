@@ -13,7 +13,7 @@ import { generateId } from "@/lib/utils/format";
 import { nowIso } from "@/lib/utils/dates";
 import { hashEvidencePacket } from "@/lib/aequor/evidenceHasher";
 import { Plus, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
-import { getClient } from "@/lib/genlayer/client";
+import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 
 const EMPTY_RULE: Omit<Rule, "id"> = {
@@ -60,7 +60,7 @@ export default function RulebooksPage() {
     };
 
     try {
-      const client = getClient();
+      const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (client as any).writeContract({

@@ -30,6 +30,18 @@ export function getClient(): GenLayerClient<GenLayerChain> {
   return _client;
 }
 
+export async function getClientReady(): Promise<GenLayerClient<GenLayerChain>> {
+  if (typeof window !== "undefined" && window.ethereum) {
+    const expected = "0x" + (61999).toString(16);
+    const current = (await window.ethereum.request({ method: "eth_chainId" })) as string;
+    if (current.toLowerCase() !== expected.toLowerCase()) {
+      const { switchToStudionet } = await import("@/lib/wallet/injected");
+      await switchToStudionet();
+    }
+  }
+  return getClient();
+}
+
 export function setClientAccount(privateKey: `0x${string}`) {
   const account = createAccount(privateKey);
   const endpoint = rpc();

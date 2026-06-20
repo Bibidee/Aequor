@@ -13,7 +13,7 @@ import { CaseTicket } from "@/components/cases/CaseTicket";
 import type { AppealRecord } from "@/lib/genlayer/types";
 import { generateId, appealOutcomeLabel } from "@/lib/utils/format";
 import { timeAgo } from "@/lib/utils/dates";
-import { getClient } from "@/lib/genlayer/client";
+import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 import { waitForTx } from "@/lib/genlayer/txWaiter";
 import { ArrowLeftRight, Plus } from "lucide-react";
@@ -57,7 +57,7 @@ function AppealsInner() {
 
     try {
       if (address) {
-        const client = getClient();
+        const client = await getClientReady();
         const contractAddr = getContractAddress();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (client as any).writeContract({
@@ -78,7 +78,7 @@ function AppealsInner() {
   const handleReviewAppeal = async (appealId: string) => {
     setReviewingId(appealId);
     try {
-      const client = getClient();
+      const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tx = await (client as any).writeContract({

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { buildCasePacket } from "@/lib/aequor/casePacketBuilder";
 import { generateId } from "@/lib/utils/format";
 import type { ModerationCase } from "@/lib/genlayer/types";
-import { getClient } from "@/lib/genlayer/client";
+import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 import { Shield, Hash, AlertTriangle } from "lucide-react";
 
@@ -109,7 +109,7 @@ export default function IntakePage() {
         packet,
       };
 
-      const client = getClient();
+      const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (client as any).writeContract({

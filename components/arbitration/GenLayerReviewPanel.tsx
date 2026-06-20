@@ -6,7 +6,7 @@ import { ValidatorTape } from "./ValidatorTape";
 import { VerdictStamp } from "./VerdictStamp";
 import { StatementOfReasonsCard } from "./StatementOfReasonsCard";
 import type { ModerationCase, ModerationVerdict } from "@/lib/genlayer/types";
-import { getClient } from "@/lib/genlayer/client";
+import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 import { waitForTx } from "@/lib/genlayer/txWaiter";
 import { normalizeVerdict } from "@/lib/genlayer/normalizeVerdict";
@@ -31,7 +31,7 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
     setStatus("pending");
     setError(null);
     try {
-      const client = getClient();
+      const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tx = await (client as any).writeContract({

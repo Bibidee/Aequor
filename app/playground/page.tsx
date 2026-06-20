@@ -12,7 +12,7 @@ import { EvidenceStack } from "@/components/cases/EvidenceStack";
 import { SEED_CASES, SEED_RULES } from "@/lib/aequor/seed";
 import { useAequor } from "@/lib/context/AequorContext";
 import { useWallet } from "@/lib/context/WalletContext";
-import { getClient } from "@/lib/genlayer/client";
+import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 import { waitForTx } from "@/lib/genlayer/txWaiter";
 import { normalizeVerdict } from "@/lib/genlayer/normalizeVerdict";
@@ -48,7 +48,7 @@ export default function PlaygroundPage() {
     setLiveStatus("pending");
     setError(null);
     try {
-      const client = getClient();
+      const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tx = await (client as any).writeContract({
