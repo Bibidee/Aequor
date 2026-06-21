@@ -198,11 +198,17 @@ function AppealsInner() {
                       )}
                       <div className="text-xs text-muted-ink font-body">{timeAgo(a.submittedAt)}</div>
                     </div>
-                    {a.status === "SUBMITTED" && (
-                      <Button variant="outline" size="sm" onClick={() => handleReviewAppeal(a.id)} disabled={reviewingId === a.id} className="border-appeal-purple text-appeal-purple shrink-0">
-                        {reviewingId === a.id ? "Reviewing…" : "GenLayer Review"}
-                      </Button>
-                    )}
+                    {a.status === "SUBMITTED" && (() => {
+                      const appealCase = getCaseById(a.caseId);
+                      const isComplainant = appealCase?.complainantWallet &&
+                        address?.toLowerCase() === appealCase.complainantWallet.toLowerCase();
+                      if (!isComplainant) return null;
+                      return (
+                        <Button variant="outline" size="sm" onClick={() => handleReviewAppeal(a.id)} disabled={reviewingId === a.id} className="border-appeal-purple text-appeal-purple shrink-0">
+                          {reviewingId === a.id ? "Reviewing…" : "GenLayer Review"}
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </CardBody>
               </Card>
