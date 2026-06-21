@@ -52,6 +52,9 @@ export default function IntakePage() {
     priorActionSummary: "",
     requestedAction: "WARNING",
     localeContext: "English",
+    respondentDiscord: "",
+    respondentWallet: "",
+    respondentNote: "",
     evidenceText1: "",
     evidenceText2: "",
   });
@@ -66,6 +69,14 @@ export default function IntakePage() {
   const handleSubmit = async () => {
     if (!form.communityId || !form.selectedRuleId || !form.contextSummary) {
       setError("Community, rule, and context summary are required.");
+      return;
+    }
+    if (!form.respondentDiscord) {
+      setError("Respondent Discord handle is required.");
+      return;
+    }
+    if (!form.respondentWallet) {
+      setError("Respondent wallet address is required for appeal-enabled cases.");
       return;
     }
     if (!address) {
@@ -86,7 +97,10 @@ export default function IntakePage() {
         requestedAction: form.requestedAction,
         localeContext: form.localeContext,
         reporterHash: await import("@/lib/aequor/evidenceHasher").then((m) => m.hashString(`reporter_${address ?? "anon"}`)),
-        reportedUserHash: await import("@/lib/aequor/evidenceHasher").then((m) => m.hashString(`reported_${Date.now()}`)),
+        reportedUserHash: await import("@/lib/aequor/evidenceHasher").then((m) => m.hashString(`reported_${form.respondentDiscord}`)),
+        respondentDiscord: form.respondentDiscord,
+        respondentWallet: form.respondentWallet,
+        respondentNote: form.respondentNote,
         rawEvidenceTexts: [form.evidenceText1, form.evidenceText2].filter(Boolean),
       });
 
@@ -103,7 +117,13 @@ export default function IntakePage() {
         requestedAction: form.requestedAction,
         priorActionSummary: form.priorActionSummary,
         localeContext: form.localeContext,
+        respondentDiscord: form.respondentDiscord,
+        respondentWallet: form.respondentWallet,
+        respondentNote: form.respondentNote,
+        complainantWallet: address ?? "",
         status: "SUBMITTED",
+        reviewStatus: "NOT_STARTED",
+        appealStatus: "NO_APPEAL",
         submittedAt: new Date().toISOString(),
         submittedBy: address ?? "0xlocal",
         packet,
@@ -149,6 +169,18 @@ export default function IntakePage() {
             <Select label="Applicable Rule" value={form.selectedRuleId} onChange={(e) => setForm({ ...form, selectedRuleId: e.target.value })} options={ruleOptions} />
             <Select label="Requested Action" value={form.requestedAction} onChange={(e) => setForm({ ...form, requestedAction: e.target.value })} options={ACTIONS} />
             <Input label="Locale / Context" value={form.localeContext} onChange={(e) => setForm({ ...form, localeContext: e.target.value })} placeholder="English, gaming slang, competitive context" />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader><span className="font-stamp text-xs uppercase tracking-widest">Reported User / Respondent</span></CardHeader>
+          <CardBody className="space-y-4">
+            <Input label="Discord Handle or User ID" value={form.respondentDiscord} onChange={(e) => setForm({ ...form, respondentDiscord: e.target.value })} placeholder="@player123 or player123#0001" />
+            <Input label="Wallet Address" value={form.respondentWallet} onChange={(e) => setForm({ ...form, respondentWallet: e.target.value })} placeholder="0x..." />
+            <Textarea label="Note (optional)" value={form.respondentNote} onChange={(e) => setForm({ ...form, respondentNote: e.target.value })} rows={2} placeholder="Who this user is in the community or why they are linked to this case." />
+            <div className="text-[10px] font-body text-muted-ink">
+              Appeals are wallet-gated. The respondent wallet will be the only wallet allowed to file an appeal after the ruling.
+            </div>
           </CardBody>
         </Card>
 

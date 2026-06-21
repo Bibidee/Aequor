@@ -13,6 +13,9 @@ export interface CaseFormData {
   localeContext: string;
   reporterHash: string;
   reportedUserHash: string;
+  respondentDiscord: string;
+  respondentWallet: string;
+  respondentNote: string;
   rawEvidenceTexts: string[];
 }
 
@@ -38,6 +41,9 @@ export async function buildCasePacket(
     evidenceHashes,
     requestedAction: form.requestedAction,
     localeContext: form.localeContext || "English",
+    respondentDiscord: form.respondentDiscord,
+    respondentWallet: form.respondentWallet,
+    respondentNote: form.respondentNote,
     submittedAt: nowIso(),
   };
 

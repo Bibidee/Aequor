@@ -147,6 +147,10 @@ class AequorModeration(gl.Contract):
         assert case_packet_json, "case_packet_json required"
         packet = safe_loads(case_packet_json, {})
         community_id = packet.get("communityId", "")
+        respondent_discord = packet.get("respondentDiscord", "")
+        respondent_wallet = packet.get("respondentWallet", "")
+        respondent_note = packet.get("respondentNote", "")
+        assert respondent_discord, "respondent Discord handle is required"
         record = {
             "id": case_id,
             "communityId": community_id,
@@ -160,7 +164,13 @@ class AequorModeration(gl.Contract):
             "requestedAction": packet.get("requestedAction", ""),
             "priorActionSummary": packet.get("priorActionSummary", ""),
             "localeContext": packet.get("localeContext", ""),
+            "respondentDiscord": respondent_discord,
+            "respondentWallet": respondent_wallet,
+            "respondentNote": respondent_note,
+            "complainantWallet": str(gl.message.sender_address),
             "status": "SUBMITTED",
+            "reviewStatus": "NOT_STARTED",
+            "appealStatus": "NO_APPEAL",
             "verdict": None,
             "submittedAt": utcnow(),
             "submittedBy": str(gl.message.sender_address),
@@ -296,6 +306,11 @@ class AequorModeration(gl.Contract):
         verdict["reviewedAt"] = utcnow()
         case["verdict"] = verdict
         case["status"] = "RULED"
+        case["reviewStatus"] = "RESOLVED"
+        if case.get("respondentWallet"):
+            case["appealStatus"] = "APPEAL_AVAILABLE"
+        else:
+            case["appealStatus"] = "APPEAL_NOT_ALLOWED"
         self.cases[case_id] = to_json(case)
 
         if verdict.get("decision") == "NEEDS_HUMAN_ESCALATION":
@@ -314,7 +329,18 @@ class AequorModeration(gl.Contract):
         assert appeal_id, "appeal_id required"
         assert case_id in self.cases, "Case not found"
         assert appeal_packet_json, "appeal_packet_json required"
+        case = safe_loads(self.cases[case_id], {})
+        assert case.get("reviewStatus") == "RESOLVED" or case.get("status") == "RULED", \
+            "Case must be resolved before appeal"
+        assert case.get("appealStatus") == "APPEAL_AVAILABLE", \
+            "Appeal is not available for this case"
+        respondent_wallet = case.get("respondentWallet", "")
+        caller = str(gl.message.sender_address)
+        if respondent_wallet:
+            assert caller.lower() == respondent_wallet.lower(), \
+                "Only the respondent wallet can file an appeal"
         packet = safe_loads(appeal_packet_json, {})
+        assert packet.get("reason", ""), "Appeal reason is required"
         record = {
             "id": appeal_id,
             "caseId": case_id,
@@ -325,13 +351,15 @@ class AequorModeration(gl.Contract):
             "status": "SUBMITTED",
             "outcome": None,
             "submittedAt": utcnow(),
-            "submittedBy": str(gl.message.sender_address),
+            "submittedBy": caller,
+            "appellantDiscord": packet.get("appellantDiscord", ""),
             "packet": packet,
         }
         self.appeals[appeal_id] = to_json(record)
-        case = safe_loads(self.cases[case_id], {})
         case["status"] = "APPEALED"
+        case["appealStatus"] = "APPEAL_PENDING"
         case["appealId"] = appeal_id
+        case["appealSubmittedBy"] = caller
         self.cases[case_id] = to_json(case)
         stats = safe_loads(self.stats, {})
         stats["totalAppeals"] = stats.get("totalAppeals", 0) + 1
@@ -434,13 +462,16 @@ class AequorModeration(gl.Contract):
         appeal["status"] = "REVIEWED"
         self.appeals[appeal_id] = to_json(appeal)
 
+        case["appealStatus"] = "APPEAL_RESOLVED"
+        case["appealVerdict"] = outcome.get("outcome", "")
+        case["appealReasoningSummary"] = outcome.get("reasoning", "")
         if outcome.get("outcome") in ("REVERSED", "REDUCED"):
             stats = safe_loads(self.stats, {})
             stats["totalReversals"] = stats.get("totalReversals", 0) + 1
             self.stats = to_json(stats)
             new_status = "APPEAL_REVERSED" if outcome["outcome"] == "REVERSED" else "APPEAL_REDUCED"
             case["status"] = new_status
-            self.cases[case_id] = to_json(case)
+        self.cases[case_id] = to_json(case)
 
         return to_json({"ok": True, "appealId": appeal_id, "outcome": outcome})
 

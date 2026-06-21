@@ -37,12 +37,43 @@ function AppealsInner() {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const appealableCases = cases.filter((c) => c.status === "RULED" && c.verdict?.statementOfReasons?.appealAvailable);
+  const appealableCases = cases.filter((c) =>
+    (c.status === "RULED" || c.appealStatus === "APPEAL_AVAILABLE") &&
+    c.respondentWallet &&
+    address &&
+    c.respondentWallet.toLowerCase() === address.toLowerCase()
+  );
 
   const handleSubmitAppeal = async () => {
     if (!caseId || !form.reason) { setError("Case and reason are required."); return; }
+    if (!address) { setError("Connect your wallet to submit an appeal."); return; }
+    const selectedCase = getCaseById(caseId);
+    if (selectedCase?.respondentWallet && selectedCase.respondentWallet.toLowerCase() !== address.toLowerCase()) {
+      setError("Only the respondent wallet can file an appeal for this case.");
+      return;
+    }
     setSubmitting(true); setError(null);
     const appealId = generateId("appeal");
+    const appealPacket = {
+      ...form,
+      appellantDiscord: selectedCase?.respondentDiscord ?? "",
+    };
+
+    try {
+      const client = await getClientReady();
+      const contractAddr = getContractAddress();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (client as any).writeContract({
+        address: contractAddr,
+        functionName: "submit_appeal",
+        args: [appealId, caseId, JSON.stringify(appealPacket)],
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Appeal submission failed. Check your wallet.");
+      setSubmitting(false);
+      return;
+    }
+
     const appeal: AppealRecord = {
       id: appealId,
       caseId,
@@ -52,24 +83,10 @@ function AppealsInner() {
       requestedOutcome: form.requestedOutcome as AppealRecord["requestedOutcome"],
       status: "SUBMITTED",
       submittedAt: new Date().toISOString(),
-      submittedBy: address ?? "0xlocal",
+      submittedBy: address,
     };
-
-    try {
-      if (address) {
-        const client = await getClientReady();
-        const contractAddr = getContractAddress();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (client as any).writeContract({
-          address: contractAddr,
-          functionName: "submit_appeal",
-          args: [appealId, caseId, JSON.stringify(form)],
-        });
-      }
-    } catch { /* local */ }
-
     addAppeal(appeal);
-    updateCase(caseId, { status: "APPEALED", appealId });
+    updateCase(caseId, { status: "APPEALED", appealStatus: "APPEAL_PENDING", appealId });
     setShowForm(false);
     setForm({ reason: "", missingContext: "", counterEvidenceSummary: "", requestedOutcome: "REVERSED" });
     setSubmitting(false);

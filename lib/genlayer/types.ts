@@ -60,6 +60,14 @@ export interface ModerationVerdict {
   reviewedAt?: string;
 }
 
+export type AppealStatus =
+  | "NO_APPEAL"
+  | "APPEAL_AVAILABLE"
+  | "APPEAL_PENDING"
+  | "APPEAL_RESOLVED"
+  | "APPEAL_REJECTED"
+  | "APPEAL_NOT_ALLOWED";
+
 export interface ModerationCase {
   id: string;
   communityId: string;
@@ -73,9 +81,18 @@ export interface ModerationCase {
   requestedAction: string;
   priorActionSummary: string;
   localeContext: string;
+  respondentDiscord: string;
+  respondentWallet: string;
+  respondentNote: string;
+  complainantWallet: string;
   status: CaseStatus;
+  reviewStatus?: string;
+  appealStatus?: AppealStatus;
   verdict?: ModerationVerdict;
   appealId?: string;
+  appealSubmittedBy?: string;
+  appealVerdict?: string;
+  appealReasoningSummary?: string;
   reportQuality?: ReportQuality;
   submittedAt: string;
   submittedBy: string;
@@ -96,6 +113,9 @@ export interface CasePacket {
   evidenceHashes: string[];
   requestedAction: string;
   localeContext: string;
+  respondentDiscord: string;
+  respondentWallet: string;
+  respondentNote: string;
   submittedAt: string;
 }
 

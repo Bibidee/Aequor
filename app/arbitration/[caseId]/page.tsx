@@ -12,11 +12,13 @@ import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { ModerationVerdict } from "@/lib/genlayer/types";
 import Link from "next/link";
+import { useWallet } from "@/lib/context/WalletContext";
 import { ArrowLeft, FileText } from "lucide-react";
 
 export default function ArbitrationCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = use(params);
   const { getCaseById, updateCase, getRulebookByCommunity } = useAequor();
+  const { address } = useWallet();
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setHydrated(true); }, []);
 
@@ -76,6 +78,20 @@ export default function ArbitrationCasePage({ params }: { params: Promise<{ case
                     <div className="font-body text-sm text-ink">{case_.requestedAction}</div>
                   </div>
                 </div>
+                {case_.respondentDiscord && (
+                  <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-border-ink pt-3">
+                    <div>
+                      <div className="text-xs font-stamp uppercase tracking-widest text-muted-ink mb-1">Respondent</div>
+                      <div className="font-body text-sm text-ink">{case_.respondentDiscord}</div>
+                    </div>
+                    {case_.respondentWallet && (
+                      <div>
+                        <div className="text-xs font-stamp uppercase tracking-widest text-muted-ink mb-1">Respondent Wallet</div>
+                        <div className="font-mono text-xs text-ink truncate">{case_.respondentWallet}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <div className="text-xs font-stamp uppercase tracking-widest text-muted-ink mb-1">Context Summary</div>
                   <div className="font-body text-sm text-ink leading-relaxed">{case_.contextSummary}</div>
@@ -111,18 +127,56 @@ export default function ArbitrationCasePage({ params }: { params: Promise<{ case
             {/* GenLayer review */}
             <GenLayerReviewPanel case_={case_} onVerdictReceived={handleVerdictReceived} onReviewStarted={handleReviewStarted} />
 
-            {/* Appeal button */}
-            {case_.verdict && case_.verdict.statementOfReasons.appealAvailable && case_.status === "RULED" && (
-              <div className="border-2 border-appeal-purple p-4 bg-panel-cream flex items-center justify-between">
-                <div>
-                  <div className="font-stamp text-xs uppercase tracking-widest text-appeal-purple mb-1">Appeal Available</div>
-                  <div className="font-body text-sm text-muted-ink">The affected user may appeal this ruling.</div>
+            {/* Appeal section */}
+            {case_.verdict && (case_.status === "RULED" || case_.appealStatus === "APPEAL_AVAILABLE") && (() => {
+              const hasRespondentWallet = !!case_.respondentWallet;
+              const isRespondent = hasRespondentWallet && address?.toLowerCase() === case_.respondentWallet?.toLowerCase();
+              const isOldCase = !case_.respondentDiscord && !case_.respondentWallet;
+
+              if (isOldCase) return (
+                <div className="border-2 border-border-ink p-4 bg-panel-cream">
+                  <div className="font-stamp text-xs uppercase tracking-widest text-muted-ink mb-1">Appeal Unavailable</div>
+                  <div className="font-body text-sm text-muted-ink">This case was created before respondent identity was recorded.</div>
                 </div>
-                <Link href={`/appeals?caseId=${case_.id}`}>
-                  <Button variant="outline" size="sm" className="border-appeal-purple text-appeal-purple hover:bg-appeal-purple hover:text-white">
-                    File Appeal
-                  </Button>
-                </Link>
+              );
+
+              if (!hasRespondentWallet) return (
+                <div className="border-2 border-border-ink p-4 bg-panel-cream">
+                  <div className="font-stamp text-xs uppercase tracking-widest text-muted-ink mb-1">Appeal Unavailable</div>
+                  <div className="font-body text-sm text-muted-ink">No respondent wallet was recorded for this case.</div>
+                </div>
+              );
+
+              if (isRespondent) return (
+                <div className="border-2 border-appeal-purple p-4 bg-panel-cream flex items-center justify-between">
+                  <div>
+                    <div className="font-stamp text-xs uppercase tracking-widest text-appeal-purple mb-1">Dispute This Ruling</div>
+                    <div className="font-body text-sm text-muted-ink">You are the respondent ({case_.respondentDiscord}). You may file an appeal.</div>
+                  </div>
+                  <Link href={`/appeals?caseId=${case_.id}`}>
+                    <Button variant="outline" size="sm" className="border-appeal-purple text-appeal-purple hover:bg-appeal-purple hover:text-white">
+                      Submit Appeal
+                    </Button>
+                  </Link>
+                </div>
+              );
+
+              return (
+                <div className="border-2 border-border-ink p-4 bg-panel-cream">
+                  <div className="font-stamp text-xs uppercase tracking-widest text-muted-ink mb-1">Appeal Available to Respondent Only</div>
+                  <div className="font-body text-sm text-muted-ink">Only {case_.respondentDiscord}&apos;s recorded wallet can appeal this ruling.</div>
+                </div>
+              );
+            })()}
+
+            {/* Appeal resolved */}
+            {case_.appealStatus === "APPEAL_RESOLVED" && case_.appealVerdict && (
+              <div className="border-2 border-appeal-purple p-4 bg-panel-cream space-y-2">
+                <div className="font-stamp text-xs uppercase tracking-widest text-appeal-purple">Appeal Ruling</div>
+                <div className="font-heading font-bold text-sm text-ink">{case_.appealVerdict}</div>
+                {case_.appealReasoningSummary && (
+                  <div className="font-body text-sm text-muted-ink">{case_.appealReasoningSummary}</div>
+                )}
               </div>
             )}
           </div>
