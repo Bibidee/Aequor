@@ -1,56 +1,54 @@
 # Aequor
 
-**Transparent moderation rulings, powered by GenLayer consensus.**
+**Transparent moderation arbitration for communities and games, powered by GenLayer AI-validator consensus.**
 
-Aequor is a GenLayer-native moderation arbitration layer for communities and games. It uses AI-validator consensus to review disputed or high-impact moderation cases against a community rulebook, produce explainable decisions, support appeals, and track consistency over time.
+Community moderators submit cases against a registered rulebook. GenLayer validators reach consensus on whether a rule was violated, recommend an action, and produce a structured ruling with full reasoning. The respondent can file an on-chain appeal — only their wallet can do so. The original complainant triggers the appeal review, which goes back through validator consensus. All rulings and appeal outcomes are stored on-chain and readable at any time.
 
----
+No human arbitrator. No opaque decisions. Every ruling is appealable, every outcome is traceable, and every verdict includes the policy basis, facts considered, and proportionality reasoning.
 
-## What Aequor Is
-
-Aequor is a moderation arbitration layer for communities and games. It is **not** a censorship bot, AI classifier, or automated ban machine. It is a structured arbitration system where GenLayer validators interpret your community rulebook and submitted evidence to produce transparent, rulebook-linked, appealable decisions.
+Built for gaming guilds, DAOs, forums, and creator communities that need moderation they can defend.
 
 ---
 
-## What Problem It Solves
+## What Aequor Is Not
 
-Moderation decisions are hard because they involve context, intent, culture, game-specific rules, history, and proportional enforcement. A normal smart contract cannot decide whether a chat message is harassment, whether a gaming clip shows griefing, or whether a ban was disproportionate.
-
-GenLayer is valuable here because moderation arbitration is judgement-heavy.
+- Not a censorship bot or automated ban machine
+- Not a single-AI classifier
+- Not a centralized moderation service
+- No backend, no database, no indexer — frontend + GenLayer contract only
 
 ---
 
-## Why GenLayer Is Needed
+## Why GenLayer
 
-Moderation arbitration requires interpretation, context, proportionality, and consistency. Aequor uses GenLayer Intelligent Contracts for these judgement-heavy decisions while keeping raw evidence and operational UI off-chain.
+Moderation arbitration requires interpretation, context, proportionality, and consistency. A deterministic smart contract cannot decide whether a chat message is harassment, whether a gaming clip shows griefing, or whether a ban was disproportionate.
 
-GenLayer validators independently evaluate the same case packet against the rulebook and reach consensus — not a single AI decision but a distributed consensus process.
+GenLayer validators independently evaluate each case packet against the community rulebook and reach consensus — not a single AI decision but a distributed consensus process.
 
 ---
 
 ## What the Contract Judges
 
-The `AequorModeration` GenLayer Intelligent Contract evaluates:
+The `AequorModeration` Intelligent Contract evaluates:
 
 1. Did the reported content violate the selected rule?
 2. Was the selected rule the most appropriate?
 3. Was the enforcement action proportional?
-4. Does the user's appeal introduce enough context to reduce or reverse the action?
+4. Does the appeal introduce enough new context to reduce or reverse the ruling?
 5. Is the report malicious or low-quality?
-6. Is the ruling consistent with prior cases?
 
 ---
 
 ## What Is Stored On-Chain
 
-- Community metadata
-- Rulebook hash
+- Community metadata and rulebook hash
 - Case packet summary (not raw evidence)
 - Evidence hashes
-- Structured verdict (decision, severity, recommended action, confidence, reasoning)
-- Statement of Reasons
+- Structured verdict — decision, severity, recommended action, confidence, reasoning
+- Statement of Reasons — policy basis, facts considered, proportionality
+- Respondent identity (Discord handle, wallet)
 - Appeal submission and outcome
-- Protocol statistics
+- Appeal verdict and reasoning summary
 
 ## What Is NOT Stored On-Chain
 
@@ -60,80 +58,55 @@ The `AequorModeration` GenLayer Intelligent Contract evaluates:
 
 ---
 
-## How Appeals Work
+## Appeal Flow
 
-1. Affected user files appeal: reason, missing context, counter-evidence summary, requested outcome.
-2. Aequor calls `review_appeal(appeal_id)` on GenLayer.
-3. Validators evaluate with original verdict.
-4. Outcome: UPHELD, REDUCED, REVERSED, REVIEW_AGAIN_WITH_MORE_CONTEXT, or ESCALATED.
+1. Respondent wallet files appeal — reason, missing context, counter-evidence, requested outcome
+2. Complainant wallet triggers `review_appeal()` on GenLayer
+3. Validators re-evaluate with original verdict and appeal context
+4. Outcome stored on-chain: UPHELD, REDUCED, or REVERSED
+5. Case page shows appeal result immediately — refresh-safe, reads from contract getter
 
----
-
-## How Transparency Works
-
-The Transparency dashboard shows public aggregate metrics only — no private case details.
+Appeals are wallet-gated. Only the respondent wallet recorded at case creation can file. Only the complainant wallet can trigger the appeal review.
 
 ---
 
 ## How to Run Locally
 
 ```bash
-cd aequor
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open [http://localhost:3000](http://localhost:3000)
+
+Requires MetaMask or Rabby connected to GenLayer Studionet (chain ID 61999).
 
 ---
 
-## How to Deploy Contract
+## Environment
 
-```bash
-genlayer deploy --contract contract/AequorModeration.py --network studionet
-```
-
-Set `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS` in `.env.local`.
-
----
-
-## How to Connect Injected Wallet
-
-1. Install MetaMask or Rabby
-2. Click "Connect Wallet"
-3. Switch to GenLayer Studionet if prompted
-
-No Privy. No email login. No WalletConnect.
-
----
-
-## Safety and Abuse Boundaries
-
-- Raw evidence never stored on-chain
-- High-risk content: "High-risk evidence withheld. Manual/legal escalation required."
-- Appeals always available
-- AI automation disclosed in every ruling
-- No user ranking or shame boards
-- No external AI APIs — GenLayer only
-
----
-
-## Demo Walkthrough
-
-```
-Landing page → Connect wallet → Create Community → Register Rulebook
-→ Submit Case → View Evidence Hashes → Call review_case()
-→ View Validator Trace + Verdict → Read Statement of Reasons
-→ File Appeal → Call review_appeal() → View Transparency Dashboard
-→ Open Playground
+```env
+NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0x4EfDCd33E762cC178D7781613a7Abd7CeDbA8c26
+NEXT_PUBLIC_GENLAYER_CHAIN_ID=61999
+NEXT_PUBLIC_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 ```
 
 ---
 
-## Why This Is GenLayer-Native
+## Contract
 
-Content moderation is not purely deterministic. It requires judgement, context, proportionality, appealability, and consistency — exactly where GenLayer Intelligent Contracts outperform deterministic smart contracts.
+```
+contract/AequorModeration.py
+Network: GenLayer Studionet
+Address: 0x4EfDCd33E762cC178D7781613a7Abd7CeDbA8c26
+```
 
-Aequor uses GenLayer only for judgement-heavy decisions. Everything operational stays off-chain.
+---
 
-**GenLayer-native moderation arbitration for communities and games — transparent, appealable, rulebook-linked, and consistency-aware.**
+## Stack
+
+- Next.js 16 App Router
+- GenLayer JS SDK (`genlayer-js`)
+- Tailwind CSS v4
+- Injected wallet only (MetaMask / Rabby)
+- No Privy, no WalletConnect, no backend, no database
