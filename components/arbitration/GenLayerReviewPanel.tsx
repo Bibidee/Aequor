@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { ValidatorTape } from "./ValidatorTape";
 import { VerdictStamp } from "./VerdictStamp";
@@ -8,10 +8,13 @@ import { StatementOfReasonsCard } from "./StatementOfReasonsCard";
 import type { ModerationCase, ModerationVerdict } from "@/lib/genlayer/types";
 import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
-import { waitForTx } from "@/lib/genlayer/txWaiter";
+import { waitForTxFinality } from "@/lib/genlayer/txWaiter";
+import { readCaseFromContract } from "@/lib/genlayer/contractReader";
 import { normalizeVerdict } from "@/lib/genlayer/normalizeVerdict";
 import { actionLabel } from "@/lib/utils/format";
 import { Zap, AlertTriangle } from "lucide-react";
+
+const LS_PREFIX = "aequor:reviewTx:";
 
 interface Props {
   case_: ModerationCase;
@@ -24,8 +27,70 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
   const [verdict, setVerdict] = useState<ModerationVerdict | null>(case_.verdict ?? null);
   const [txHash, setTxHash] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
+  const pollingRef = useRef(false);
 
-  const alreadyRuled = !!case_.verdict && status === "idle";
+  const alreadyRuled = !!verdict;
+
+  const pollContractForVerdict = useCallback(async () => {
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+    try {
+      for (let i = 0; i < 60; i++) {
+        const onChain = await readCaseFromContract(case_.id);
+        console.log("[Aequor] Contract poll:", onChain?.status, onChain?.verdict ? "has verdict" : "no verdict");
+        if (onChain?.verdict && onChain.status === "RULED") {
+          const v = normalizeVerdict(onChain.verdict);
+          if (v?.decision) {
+            setVerdict(v);
+            setStatus("finalized");
+            onVerdictReceived?.(v);
+            localStorage.removeItem(LS_PREFIX + case_.id);
+            return;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 8_000));
+      }
+      setError("Timed out waiting for verdict from contract.");
+      setStatus("error");
+    } finally {
+      pollingRef.current = false;
+    }
+  }, [case_.id, onVerdictReceived]);
+
+  // On mount: check contract state and recover pending tx
+  useEffect(() => {
+    if (alreadyRuled) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // First check contract — maybe already resolved
+      const onChain = await readCaseFromContract(case_.id);
+      if (cancelled) return;
+
+      if (onChain?.verdict && onChain.status === "RULED") {
+        const v = normalizeVerdict(onChain.verdict);
+        if (v?.decision) {
+          setVerdict(v);
+          setStatus("finalized");
+          onVerdictReceived?.(v);
+          localStorage.removeItem(LS_PREFIX + case_.id);
+          return;
+        }
+      }
+
+      // Check for pending tx recovery
+      const savedTx = localStorage.getItem(LS_PREFIX + case_.id);
+      if (savedTx) {
+        setTxHash(savedTx);
+        setStatus("pending");
+        onReviewStarted?.();
+        pollContractForVerdict();
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [case_.id]);
 
   const triggerReview = useCallback(async () => {
     setStatus("pending");
@@ -39,31 +104,21 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
         functionName: "review_case",
         args: [case_.id],
       });
-      setTxHash(tx);
+      const hash = typeof tx === "string" ? tx : String(tx);
+      setTxHash(hash);
+      localStorage.setItem(LS_PREFIX + case_.id, hash);
       onReviewStarted?.();
-      const result = await waitForTx(tx as `0x${string}`);
-      console.log("[Aequor] TX result:", JSON.stringify(result, null, 2));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let raw = result as any;
-      // If result is a string, parse it
-      if (typeof raw === "string") {
-        try { raw = JSON.parse(raw); } catch { /* leave as-is */ }
-      }
-      // Contract returns {caseId, ok, verdict: {...}} — unwrap
-      const verdictRaw = raw?.verdict ?? raw?.result?.verdict ?? raw;
-      console.log("[Aequor] Verdict raw:", JSON.stringify(verdictRaw, null, 2));
-      const v = normalizeVerdict(verdictRaw);
-      console.log("[Aequor] Normalized verdict:", JSON.stringify(v, null, 2));
-      if (v?.decision) {
-        setVerdict(v);
-        onVerdictReceived?.(v);
-      }
-      setStatus("finalized");
+
+      // Wait for tx finality first
+      await waitForTxFinality(hash as `0x${string}`);
+
+      // Then poll contract getter for the stored verdict
+      await pollContractForVerdict();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Review failed");
       setStatus("error");
     }
-  }, [case_.id, onVerdictReceived]);
+  }, [case_.id, onReviewStarted, pollContractForVerdict]);
 
   return (
     <div className="space-y-4">
@@ -90,7 +145,7 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
           <div className="font-stamp text-xs uppercase tracking-widest text-signal-lime animate-pulse">
             GenLayer validators are evaluating this case…
           </div>
-          <div className="text-xs text-muted-ink mt-1 font-body">Checking every 10 seconds. This may take 1–3 minutes on Studionet.</div>
+          <div className="text-xs text-muted-ink mt-1 font-body">Polling contract every 8 seconds. This may take 1–3 minutes on Studionet.</div>
         </div>
       )}
 
