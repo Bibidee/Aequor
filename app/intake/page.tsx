@@ -132,11 +132,14 @@ export default function IntakePage() {
       const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (client as any).writeContract({
+      const reportTx = await (client as any).writeContract({
         address: contractAddr,
         functionName: "submit_case",
         args: [caseId, JSON.stringify(packet), evidenceHash],
       });
+      if (reportTx) {
+        localStorage.setItem(`aequor:tx:${caseId}:report`, String(reportTx));
+      }
 
       addCase(newCase);
       router.push(`/arbitration/${caseId}`);

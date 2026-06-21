@@ -16,6 +16,10 @@ import { Zap, AlertTriangle } from "lucide-react";
 
 const LS_PREFIX = "aequor:reviewTx:";
 
+function saveTxHash(caseId: string, step: "review" | "verdict", hash: string) {
+  localStorage.setItem(`aequor:tx:${caseId}:${step}`, hash);
+}
+
 interface Props {
   case_: ModerationCase;
   onVerdictReceived?: (verdict: ModerationVerdict) => void;
@@ -45,6 +49,9 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
             setStatus("finalized");
             onVerdictReceived?.(v);
             localStorage.removeItem(LS_PREFIX + case_.id);
+            // The review tx hash IS the verdict tx hash — alias it
+            const reviewHash = localStorage.getItem(`aequor:tx:${case_.id}:review`);
+            if (reviewHash) saveTxHash(case_.id, "verdict", reviewHash);
             return;
           }
         }
@@ -107,6 +114,7 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
       const hash = typeof tx === "string" ? tx : String(tx);
       setTxHash(hash);
       localStorage.setItem(LS_PREFIX + case_.id, hash);
+      saveTxHash(case_.id, "review", hash);
       onReviewStarted?.();
 
       // Wait for tx finality first

@@ -64,11 +64,14 @@ function AppealsInner() {
       const client = await getClientReady();
       const contractAddr = getContractAddress();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (client as any).writeContract({
+      const appealTx = await (client as any).writeContract({
         address: contractAddr,
         functionName: "submit_appeal",
         args: [appealId, caseId, JSON.stringify(appealPacket)],
       });
+      if (appealTx) {
+        localStorage.setItem(`aequor:tx:${caseId}:appeal`, String(appealTx));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Appeal submission failed. Check your wallet.");
       setSubmitting(false);
@@ -107,11 +110,14 @@ function AppealsInner() {
         args: [appealId],
       });
 
+      const appealVerdictTxHash = typeof tx === "string" ? tx : String(tx);
+
       // Wait for tx finality
       await waitForTxFinality(tx as `0x${string}`);
 
       // Poll contract getter until appealStatus = APPEAL_RESOLVED
       if (appeal) {
+        localStorage.setItem(`aequor:tx:${appeal.caseId}:appealVerdict`, appealVerdictTxHash);
         for (let i = 0; i < 60; i++) {
           const onChain = await readCaseFromContract(appeal.caseId);
           console.log("[Aequor] Appeal poll:", onChain?.appealStatus);

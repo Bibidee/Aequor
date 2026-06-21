@@ -11,6 +11,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { ModerationVerdict } from "@/lib/genlayer/types";
+import type { TimelineChainData, TimelineTxHashes } from "@/components/cases/CaseTimeline";
 import Link from "next/link";
 import { useWallet } from "@/lib/context/WalletContext";
 import { ArrowLeft, FileText } from "lucide-react";
@@ -24,6 +25,7 @@ export default function ArbitrationCasePage({ params }: { params: Promise<{ case
   const [chainAppealStatus, setChainAppealStatus] = useState<string | null>(null);
   const [chainAppealVerdict, setChainAppealVerdict] = useState<string | null>(null);
   const [chainAppealReasoning, setChainAppealReasoning] = useState<string | null>(null);
+  const [chainReviewStatus, setChainReviewStatus] = useState<string | null>(null);
   const appealPollingRef = useRef(false);
 
   useEffect(() => { setHydrated(true); }, []);
@@ -35,6 +37,8 @@ export default function ArbitrationCasePage({ params }: { params: Promise<{ case
         const onChain = await readCaseFromContract(caseId);
         if (!onChain || cancelled) return;
         const status = onChain.appealStatus as string | undefined;
+        const reviewSt = onChain.reviewStatus as string | undefined;
+        if (reviewSt) setChainReviewStatus(reviewSt);
         if (status === "APPEAL_RESOLVED") {
           const verdict = (onChain.appealVerdict as string) ?? "";
           const reasoning = (onChain.appealReasoningSummary as string) ?? "";
@@ -251,7 +255,15 @@ export default function ArbitrationCasePage({ params }: { params: Promise<{ case
             <Card>
               <CardHeader><span className="font-stamp text-xs uppercase tracking-widest">Case Timeline</span></CardHeader>
               <CardBody>
-                <CaseTimeline case_={case_} />
+                <CaseTimeline
+                case_={case_}
+                chainData={{
+                  appealStatus: chainAppealStatus,
+                  appealVerdict: chainAppealVerdict,
+                  appealReasoningSummary: chainAppealReasoning,
+                  reviewStatus: chainReviewStatus,
+                } satisfies TimelineChainData}
+              />
               </CardBody>
             </Card>
 
