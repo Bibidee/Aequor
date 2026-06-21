@@ -25,7 +25,6 @@ const NAV = [
   { href: "/appeals", label: "Appeals", icon: ArrowLeftRight },
   { href: "/consistency", label: "Consistency", icon: BarChart2 },
   { href: "/transparency", label: "Transparency", icon: Eye },
-  { href: "/playground", label: "Playground", icon: FlaskConical },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
