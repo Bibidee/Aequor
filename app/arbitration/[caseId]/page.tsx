@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAequor } from "@/lib/context/AequorContext";
@@ -14,13 +14,63 @@ import type { ModerationVerdict } from "@/lib/genlayer/types";
 import Link from "next/link";
 import { useWallet } from "@/lib/context/WalletContext";
 import { ArrowLeft, FileText } from "lucide-react";
+import { readCaseFromContract } from "@/lib/genlayer/contractReader";
 
 export default function ArbitrationCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = use(params);
   const { getCaseById, updateCase, getRulebookByCommunity } = useAequor();
   const { address } = useWallet();
   const [hydrated, setHydrated] = useState(false);
+  const [chainAppealStatus, setChainAppealStatus] = useState<string | null>(null);
+  const [chainAppealVerdict, setChainAppealVerdict] = useState<string | null>(null);
+  const [chainAppealReasoning, setChainAppealReasoning] = useState<string | null>(null);
+  const appealPollingRef = useRef(false);
+
   useEffect(() => { setHydrated(true); }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkAppealOnChain() {
+      try {
+        const onChain = await readCaseFromContract(caseId);
+        if (!onChain || cancelled) return;
+        const status = onChain.appealStatus as string | undefined;
+        if (status === "APPEAL_RESOLVED") {
+          const verdict = (onChain.appealVerdict as string) ?? "";
+          const reasoning = (onChain.appealReasoningSummary as string) ?? "";
+          setChainAppealStatus("APPEAL_RESOLVED");
+          setChainAppealVerdict(verdict);
+          setChainAppealReasoning(reasoning);
+          updateCase(caseId, { appealStatus: "APPEAL_RESOLVED", appealVerdict: verdict, appealReasoningSummary: reasoning });
+        } else if (status === "APPEAL_PENDING" && !appealPollingRef.current) {
+          appealPollingRef.current = true;
+          setChainAppealStatus("APPEAL_PENDING");
+          for (let i = 0; i < 90; i++) {
+            if (cancelled) break;
+            await new Promise((r) => setTimeout(r, 8_000));
+            if (cancelled) break;
+            const polled = await readCaseFromContract(caseId);
+            if (!polled || cancelled) break;
+            if (polled.appealStatus === "APPEAL_RESOLVED") {
+              const verdict = (polled.appealVerdict as string) ?? "";
+              const reasoning = (polled.appealReasoningSummary as string) ?? "";
+              setChainAppealStatus("APPEAL_RESOLVED");
+              setChainAppealVerdict(verdict);
+              setChainAppealReasoning(reasoning);
+              updateCase(caseId, { appealStatus: "APPEAL_RESOLVED", appealVerdict: verdict, appealReasoningSummary: reasoning });
+              break;
+            }
+          }
+          appealPollingRef.current = false;
+        }
+      } catch {
+        // contract read failure — ignore silently on case page
+      }
+    }
+    checkAppealOnChain();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId]);
 
   const case_ = getCaseById(caseId);
 
@@ -169,16 +219,31 @@ export default function ArbitrationCasePage({ params }: { params: Promise<{ case
               );
             })()}
 
-            {/* Appeal resolved */}
-            {case_.appealStatus === "APPEAL_RESOLVED" && case_.appealVerdict && (
+            {/* Appeal pending — polling in progress */}
+            {chainAppealStatus === "APPEAL_PENDING" && (
               <div className="border-2 border-appeal-purple p-4 bg-panel-cream space-y-2">
-                <div className="font-stamp text-xs uppercase tracking-widest text-appeal-purple">Appeal Ruling</div>
-                <div className="font-heading font-bold text-sm text-ink">{case_.appealVerdict}</div>
-                {case_.appealReasoningSummary && (
-                  <div className="font-body text-sm text-muted-ink">{case_.appealReasoningSummary}</div>
-                )}
+                <div className="font-stamp text-xs uppercase tracking-widest text-appeal-purple animate-pulse">Appeal Review In Progress</div>
+                <div className="font-body text-sm text-muted-ink">GenLayer validators are reviewing the appeal. This page will update automatically when the result is ready.</div>
               </div>
             )}
+
+            {/* Appeal resolved — from chain (refresh-safe) or localStorage */}
+            {(() => {
+              const resolvedOnChain = chainAppealStatus === "APPEAL_RESOLVED" && chainAppealVerdict;
+              const resolvedInStorage = case_.appealStatus === "APPEAL_RESOLVED" && case_.appealVerdict;
+              const verdict = chainAppealVerdict || case_.appealVerdict;
+              const reasoning = chainAppealReasoning || case_.appealReasoningSummary;
+              if (!resolvedOnChain && !resolvedInStorage) return null;
+              return (
+                <div className="border-2 border-appeal-purple p-4 bg-panel-cream space-y-2">
+                  <div className="font-stamp text-xs uppercase tracking-widest text-appeal-purple">Appeal Ruling</div>
+                  <div className="font-heading font-bold text-sm text-ink">{verdict}</div>
+                  {reasoning && (
+                    <div className="font-body text-sm text-muted-ink">{reasoning}</div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Right: timeline + inspector */}
