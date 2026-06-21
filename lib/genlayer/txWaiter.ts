@@ -48,11 +48,16 @@ export async function waitForTx(txHash: `0x${string}`): Promise<unknown> {
 
       if (receipt) {
         const status = getStatus(receipt);
+        console.log("[Aequor] TX poll status:", status, "keys:", Object.keys(receipt as object));
         const isFinal = status === "accepted" || status === "finalized" || status === "accepted_with_errors";
 
         if (isFinal) {
+          console.log("[Aequor] TX final receipt:", JSON.stringify(receipt).substring(0, 500));
           const result = extractResult(receipt);
-          if (result !== null) return result;
+          if (result !== null) {
+            console.log("[Aequor] Extracted result:", JSON.stringify(result).substring(0, 500));
+            return result;
+          }
           // Final but no result yet — retry a couple times
           for (let j = 0; j < 3; j++) {
             await new Promise((r) => setTimeout(r, 3000));
@@ -61,9 +66,10 @@ export async function waitForTx(txHash: `0x${string}`): Promise<unknown> {
             const retryResult = extractResult(retry);
             if (retryResult !== null) return retryResult;
           }
+          // Return raw receipt so caller can debug
+          console.warn("[Aequor] No result extracted from final receipt, returning raw");
           return receipt;
         }
-        // Not final yet (pending, committing, proposing) — keep polling
       }
     } catch {
       // RPC error — keep polling

@@ -44,11 +44,16 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
       const result = await waitForTx(tx as `0x${string}`);
       console.log("[Aequor] TX result:", JSON.stringify(result, null, 2));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw = result as any;
-      // Contract may return nested: {caseId, ok, verdict: {...}} or just the verdict
+      let raw = result as any;
+      // If result is a string, parse it
+      if (typeof raw === "string") {
+        try { raw = JSON.parse(raw); } catch { /* leave as-is */ }
+      }
+      // Contract returns {caseId, ok, verdict: {...}} — unwrap
       const verdictRaw = raw?.verdict ?? raw?.result?.verdict ?? raw;
       console.log("[Aequor] Verdict raw:", JSON.stringify(verdictRaw, null, 2));
       const v = normalizeVerdict(verdictRaw);
+      console.log("[Aequor] Normalized verdict:", JSON.stringify(v, null, 2));
       if (v?.decision) {
         setVerdict(v);
         onVerdictReceived?.(v);
