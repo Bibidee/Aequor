@@ -34,8 +34,7 @@ export function ValidatorTape({ status, txHash, className }: ValidatorTapeProps)
             <div className={cn(
               "w-10 h-10 border-2 flex items-center justify-center font-stamp text-xs font-bold",
               status === "idle" && "border-canvas/20 text-canvas/30",
-              status === "pending" && i <= 2 && "border-signal-lime text-signal-lime animate-pulse-lime",
-              status === "pending" && i > 2 && "border-canvas/20 text-canvas/30",
+              status === "pending" && "border-signal-lime text-signal-lime animate-pulse-lime",
               status === "finalized" && "border-success-green text-success-green",
               status === "error" && "border-danger-red text-danger-red",
             )}>
@@ -45,7 +44,7 @@ export function ValidatorTape({ status, txHash, className }: ValidatorTapeProps)
               "text-[9px] font-stamp uppercase",
               status === "finalized" ? "text-success-green" : "text-canvas/30"
             )}>
-              {status === "finalized" ? "✓" : status === "pending" && i <= 2 ? "…" : "—"}
+              {status === "finalized" ? "✓" : status === "pending" ? "…" : "—"}
             </span>
           </div>
         ))}

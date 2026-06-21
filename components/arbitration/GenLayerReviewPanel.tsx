@@ -42,10 +42,12 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
       setTxHash(tx);
       onReviewStarted?.();
       const result = await waitForTx(tx as `0x${string}`);
-      // Contract returns {caseId, ok, verdict: {...}} — unwrap verdict
+      console.log("[Aequor] TX result:", JSON.stringify(result, null, 2));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = result as any;
+      // Contract may return nested: {caseId, ok, verdict: {...}} or just the verdict
       const verdictRaw = raw?.verdict ?? raw?.result?.verdict ?? raw;
+      console.log("[Aequor] Verdict raw:", JSON.stringify(verdictRaw, null, 2));
       const v = normalizeVerdict(verdictRaw);
       if (v?.decision) {
         setVerdict(v);

@@ -2,23 +2,20 @@
 
 import { getClient } from "./client";
 
-const POLL_INTERVAL = 10_000; // 10 seconds as requested
-const MAX_ATTEMPTS = 60;      // 10 minutes max
+const POLL_INTERVAL = 10_000;
+const MAX_ATTEMPTS = 60;
 
 function extractResult(receipt: unknown): unknown | null {
   if (!receipt || typeof receipt !== "object") return null;
   const r = receipt as Record<string, unknown>;
 
-  // Walk every possible path GenLayer SDK returns the leader result
   const paths: unknown[] = [
-    // consensus_data.leader_receipt.*
     (r["consensus_data"] as Record<string, unknown> | undefined)
       ?.["leader_receipt"] &&
       (() => {
         const lr = (r["consensus_data"] as Record<string, unknown>)["leader_receipt"] as Record<string, unknown>;
         return lr["result"] ?? lr["execution_result"] ?? lr["return_value"];
       })(),
-    // flat fields
     r["result"],
     r["execution_result"],
     r["return_value"],
@@ -27,7 +24,6 @@ function extractResult(receipt: unknown): unknown | null {
   for (const candidate of paths) {
     if (candidate === undefined || candidate === null) continue;
     if (typeof candidate === "string" && candidate.trim() === "") continue;
-    // Parse if it's a JSON string
     if (typeof candidate === "string") {
       try { return JSON.parse(candidate); } catch { return candidate; }
     }
@@ -37,16 +33,9 @@ function extractResult(receipt: unknown): unknown | null {
   return null;
 }
 
-function isActuallyFinalized(receipt: unknown): boolean {
-  if (!receipt || typeof receipt !== "object") return false;
-  const r = receipt as Record<string, unknown>;
-  const s = String(r["status"] ?? "").toLowerCase();
-  // Must be a final status AND have consensus_data with a leader receipt
-  const hasFinalStatus = s === "finalized" || s === "accepted" || s === "accepted_with_errors";
-  const hasLeaderReceipt = !!(
-    (r["consensus_data"] as Record<string, unknown> | undefined)?.["leader_receipt"]
-  );
-  return hasFinalStatus && hasLeaderReceipt;
+function getStatus(receipt: unknown): string {
+  if (!receipt || typeof receipt !== "object") return "";
+  return String((receipt as Record<string, unknown>)["status"] ?? "").toLowerCase();
 }
 
 export async function waitForTx(txHash: `0x${string}`): Promise<unknown> {
@@ -58,27 +47,26 @@ export async function waitForTx(txHash: `0x${string}`): Promise<unknown> {
       const receipt = await (client as any).getTransaction({ hash: txHash });
 
       if (receipt) {
-        // Only resolve when we have actual result data — never on bare finalized status
-        const result = extractResult(receipt);
-        if (result !== null) {
-          return result;
-        }
+        const status = getStatus(receipt);
+        const isFinal = status === "accepted" || status === "finalized" || status === "accepted_with_errors";
 
-        // If finalized but no result extracted yet, keep polling —
-        // leader_receipt may be populated in a subsequent poll
-        if (isActuallyFinalized(receipt)) {
-          // Give it one more cycle to populate the result
-          await new Promise((r) => setTimeout(r, 2000));
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const receipt2 = await (client as any).getTransaction({ hash: txHash });
-          const result2 = extractResult(receipt2);
-          if (result2 !== null) return result2;
-          // Still nothing — return receipt so caller can handle it
-          return receipt2 ?? receipt;
+        if (isFinal) {
+          const result = extractResult(receipt);
+          if (result !== null) return result;
+          // Final but no result yet — retry a couple times
+          for (let j = 0; j < 3; j++) {
+            await new Promise((r) => setTimeout(r, 3000));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const retry = await (client as any).getTransaction({ hash: txHash });
+            const retryResult = extractResult(retry);
+            if (retryResult !== null) return retryResult;
+          }
+          return receipt;
         }
+        // Not final yet (pending, committing, proposing) — keep polling
       }
     } catch {
-      // still pending — keep polling
+      // RPC error — keep polling
     }
 
     await new Promise((r) => setTimeout(r, POLL_INTERVAL));
