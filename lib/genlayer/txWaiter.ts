@@ -33,9 +33,22 @@ function extractResult(receipt: unknown): unknown | null {
   return null;
 }
 
+const STATUS_MAP: Record<number, string> = {
+  0: "pending",
+  1: "proposing",
+  2: "committing",
+  3: "revealing",
+  4: "accepted",
+  5: "finalized",
+  6: "undetermined",
+  7: "cancelled",
+};
+
 function getStatus(receipt: unknown): string {
   if (!receipt || typeof receipt !== "object") return "";
-  return String((receipt as Record<string, unknown>)["status"] ?? "").toLowerCase();
+  const raw = (receipt as Record<string, unknown>)["status"];
+  if (typeof raw === "number") return STATUS_MAP[raw] ?? String(raw);
+  return String(raw ?? "").toLowerCase();
 }
 
 export async function waitForTx(txHash: `0x${string}`): Promise<unknown> {
@@ -48,7 +61,8 @@ export async function waitForTx(txHash: `0x${string}`): Promise<unknown> {
 
       if (receipt) {
         const status = getStatus(receipt);
-        console.log("[Aequor] TX poll status:", status, "keys:", Object.keys(receipt as object));
+        const rawStatus = (receipt as Record<string, unknown>)["status"];
+        console.log("[Aequor] TX poll rawStatus:", rawStatus, "→", status, "keys:", Object.keys(receipt as object));
         const isFinal = status === "accepted" || status === "finalized" || status === "accepted_with_errors";
 
         if (isFinal) {
