@@ -15,7 +15,8 @@ import { generateId, appealOutcomeLabel } from "@/lib/utils/format";
 import { timeAgo } from "@/lib/utils/dates";
 import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
-import { waitForTx } from "@/lib/genlayer/txWaiter";
+import { waitForTxFinality } from "@/lib/genlayer/txWaiter";
+import { readCaseFromContract } from "@/lib/genlayer/contractReader";
 import { ArrowLeftRight, Plus } from "lucide-react";
 
 const OUTCOMES = [
@@ -94,6 +95,8 @@ function AppealsInner() {
 
   const handleReviewAppeal = async (appealId: string) => {
     setReviewingId(appealId);
+    setError(null);
+    const appeal = appeals.find((a) => a.id === appealId);
     try {
       const client = await getClientReady();
       const contractAddr = getContractAddress();
@@ -103,17 +106,44 @@ function AppealsInner() {
         functionName: "review_appeal",
         args: [appealId],
       });
-      const result = await waitForTx(tx as `0x${string}`);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const outcome = (result as any)?.outcome;
-      if (outcome) {
-        updateAppeal(appealId, { status: "REVIEWED", outcome });
-        const appeal = appeals.find((a) => a.id === appealId);
-        if (appeal) {
-          updateCase(appeal.caseId, {
-            status: outcome.outcome === "REVERSED" ? "APPEAL_REVERSED" : outcome.outcome === "REDUCED" ? "APPEAL_REDUCED" : "APPEALED",
-          });
+
+      // Wait for tx finality
+      await waitForTxFinality(tx as `0x${string}`);
+
+      // Poll contract getter until appealStatus = APPEAL_RESOLVED
+      if (appeal) {
+        for (let i = 0; i < 60; i++) {
+          const onChain = await readCaseFromContract(appeal.caseId);
+          console.log("[Aequor] Appeal poll:", onChain?.appealStatus);
+          if (onChain?.appealStatus === "APPEAL_RESOLVED") {
+            const appealVerdict = onChain.appealVerdict as string ?? "";
+            const appealReasoning = onChain.appealReasoningSummary as string ?? "";
+            const outcome = {
+              outcome: appealVerdict as AppealRecord["requestedOutcome"],
+              reasoning: appealReasoning,
+              originalDecision: "",
+              revisedAction: "",
+              confidence: 0,
+              notes: "",
+              reviewedAt: new Date().toISOString(),
+            };
+            updateAppeal(appealId, { status: "REVIEWED", outcome });
+            const newStatus = appealVerdict === "REVERSED"
+              ? "APPEAL_REVERSED"
+              : appealVerdict === "REDUCED"
+              ? "APPEAL_REDUCED"
+              : "APPEALED";
+            updateCase(appeal.caseId, {
+              status: newStatus,
+              appealStatus: "APPEAL_RESOLVED",
+              appealVerdict,
+              appealReasoningSummary: appealReasoning,
+            });
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 8_000));
         }
+        setError("Timed out waiting for appeal review result.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Review failed");
