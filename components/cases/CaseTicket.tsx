@@ -10,7 +10,18 @@ interface CaseTicketProps {
   compact?: boolean;
 }
 
+function effectiveStatus(case_: ModerationCase): string {
+  const appealStatus = String(case_.appealStatus ?? "").toUpperCase();
+  const hasAppealVerdict = !!(case_.appealVerdict || case_.appealReasoningSummary);
+  if (hasAppealVerdict || appealStatus === "APPEAL_RESOLVED") return "APPEAL_RESOLVED";
+  if (appealStatus === "APPEAL_PENDING" || case_.status === "APPEALED") return "APPEAL_PENDING";
+  if (case_.status === "APPEAL_REVERSED") return "APPEAL_REVERSED";
+  if (case_.status === "APPEAL_REDUCED") return "APPEAL_REDUCED";
+  return case_.status;
+}
+
 export function CaseTicket({ case_, compact }: CaseTicketProps) {
+  const displayStatus = effectiveStatus(case_);
   return (
     <Link href={`/arbitration/${case_.id}`} className={cn(
       "block border-2 border-ink bg-panel-cream hover:bg-canvas transition-colors group",
@@ -24,7 +35,7 @@ export function CaseTicket({ case_, compact }: CaseTicketProps) {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-stamp text-xs text-muted-ink uppercase tracking-widest">{case_.id}</span>
-              <StatusBadge status={case_.status} />
+              <StatusBadge status={displayStatus} />
               {case_.verdict && <DecisionBadge decision={case_.verdict.decision} />}
             </div>
             <div className={cn("font-body text-ink mt-1 line-clamp-2", compact ? "text-xs" : "text-sm")}>

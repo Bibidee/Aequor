@@ -8,17 +8,52 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Scale } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import type { ModerationCase } from "@/lib/genlayer/types";
+
+function normalizeAppealStatus(c: ModerationCase): string {
+  return String(c.appealStatus ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+}
+
+function hasAppealVerdict(c: ModerationCase): boolean {
+  return !!(c.appealVerdict || c.appealReasoningSummary);
+}
+
+function isAppealFiled(c: ModerationCase): boolean {
+  const s = normalizeAppealStatus(c);
+  return (
+    hasAppealVerdict(c) ||
+    ["APPEAL_PENDING", "APPEAL_RESOLVED", "APPEAL_REJECTED"].includes(s) ||
+    !!c.appealId
+  );
+}
+
+function isAppealWaiting(c: ModerationCase): boolean {
+  return !hasAppealVerdict(c) && normalizeAppealStatus(c) === "APPEAL_PENDING";
+}
+
+function isAppealResolved(c: ModerationCase): boolean {
+  return hasAppealVerdict(c) || normalizeAppealStatus(c) === "APPEAL_RESOLVED";
+}
 
 export default function OverviewPage() {
-  const { cases, appeals } = useAequor();
+  const { cases } = useAequor();
 
   const openCases = cases.filter((c) => ["SUBMITTED", "UNDER_REVIEW"].includes(c.status));
   const pendingReviews = cases.filter((c) => c.status === "UNDER_REVIEW");
-  const appealsWaiting = appeals.filter((a) => a.status === "SUBMITTED");
-  const reversals = appeals.filter((a) => a.outcome?.outcome === "REVERSED" || a.outcome?.outcome === "REDUCED");
-  const reversalRate = appeals.length > 0 ? Math.round((reversals.length / appeals.length) * 100) : 0;
-  const ruledCases = cases.filter((c) => c.verdict);
-  const humanEscalations = ruledCases.filter((c) => c.verdict?.decision === "NEEDS_HUMAN_ESCALATION");
+  const appealsWaiting = cases.filter(isAppealWaiting);
+  const totalAppeals = cases.filter(isAppealFiled);
+  const reviewedAppeals = cases.filter(isAppealResolved);
+  const reversals = reviewedAppeals.filter(
+    (c) => c.appealVerdict === "REVERSED"
+  );
+  const reversalRate =
+    reviewedAppeals.length > 0
+      ? Math.round((reversals.length / reviewedAppeals.length) * 100)
+      : 0;
+  const ruledCases = cases.filter((c) => !!c.verdict);
+  const humanEscalations = ruledCases.filter(
+    (c) => c.verdict?.decision === "NEEDS_HUMAN_ESCALATION"
+  );
 
   const recentCases = [...cases].slice(0, 8);
 
@@ -29,14 +64,19 @@ export default function OverviewPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Open Cases" value={openCases.length} accent="blue" sub="Submitted or under review" />
           <StatCard label="Pending Reviews" value={pendingReviews.length} accent="lime" sub="Awaiting GenLayer consensus" />
-          <StatCard label="Appeals Waiting" value={appealsWaiting.length} accent="purple" sub="Submitted, not yet reviewed" />
-          <StatCard label="Reversal Rate" value={`${reversalRate}%`} accent={reversalRate > 30 ? "coral" : "green"} sub={`${reversals.length} of ${appeals.length} appeals`} />
+          <StatCard label="Appeals Waiting" value={appealsWaiting.length} accent="purple" sub="Filed, not yet reviewed" />
+          <StatCard
+            label="Reversal Rate"
+            value={`${reversalRate}%`}
+            accent={reversalRate > 30 ? "coral" : "green"}
+            sub={`${reversals.length} of ${reviewedAppeals.length} reviewed appeal${reviewedAppeals.length !== 1 ? "s" : ""}`}
+          />
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Cases" value={cases.length} accent="default" />
           <StatCard label="Ruled Cases" value={ruledCases.length} accent="green" />
           <StatCard label="Human Escalations" value={humanEscalations.length} accent="coral" />
-          <StatCard label="Total Appeals" value={appeals.length} accent="purple" />
+          <StatCard label="Total Appeals" value={totalAppeals.length} accent="purple" />
         </div>
 
         {/* Case queue */}
