@@ -69,8 +69,10 @@ export default function RulebooksPage() {
         args: [selectedCommunity, JSON.stringify(updatedRulebook), rulebookHash],
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Transaction failed. Check your wallet and network.");
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
       setSubmitting(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
@@ -83,6 +85,12 @@ export default function RulebooksPage() {
   return (
     <AppShell title="Rulebooks" subtitle="Community rule registry">
       <div className="p-6 space-y-6">
+        {error && (
+          <div className="p-4 border-2 border-danger-red bg-panel-cream text-sm text-danger-red font-stamp">
+            {error}
+            <button onClick={() => setError(null)} className="ml-4 underline text-xs">dismiss</button>
+          </div>
+        )}
         <div className="flex items-center gap-4">
           <select
             className="border-2 border-ink bg-canvas px-3 py-2 text-sm font-body text-ink outline-none focus:border-judgement-blue"
