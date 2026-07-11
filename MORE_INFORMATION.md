@@ -59,4 +59,12 @@ All fixes above were verified against a live deployment on GenLayer Studionet, u
 
 18 of 18 state-based checks passed.
 
-**Current deployed contract:** `contract/AequorModeration.py`, GenLayer Studionet, address `0x1dbF36ed49916947bfeFd0669dafd57aD24b37c3`.
+## Frontend: making the on-chain state actually visible
+
+A correct contract is only as transparent as the interface reading it. The frontend previously read most of its data (communities, rulebooks, cases, appeals) from `localStorage`, populated only by whatever the current browser had itself submitted — so on-chain activity from other sessions, wallets, or scripts was invisible, and clearing the browser cache made real on-chain data disappear from the UI entirely.
+
+**Fix:** Added an on-chain enumeration index to the contract (`list_communities`, `get_communities_by_owner`, since the underlying storage had no native iteration), and a full protocol sync in the frontend that pulls every community, rulebook, case, and appeal directly from the contract's public read methods on page load and on demand (a global "Sync" control), replacing `localStorage` as the source of truth.
+
+**Verified:** loaded the app with no wallet connected — Overview, Rulebooks, Arbitration, Appeals, Consistency, and Transparency all correctly displayed real cases, verdicts, appeal outcomes, and rulebook rules from prior on-chain test runs, none of which were ever submitted through that browser.
+
+**Current deployed contract:** `contract/AequorModeration.py`, GenLayer Studionet, address `0xe7B20f682d2f2872Af73DF0CD29281175c906afc`.
