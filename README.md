@@ -86,7 +86,7 @@ Requires MetaMask or Rabby connected to GenLayer Studionet (chain ID 61999).
 ## Environment
 
 ```env
-NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0x1dbF36ed49916947bfeFd0669dafd57aD24b37c3
+NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0xe7B20f682d2f2872Af73DF0CD29281175c906afc
 NEXT_PUBLIC_GENLAYER_CHAIN_ID=61999
 NEXT_PUBLIC_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 ```
@@ -98,7 +98,7 @@ NEXT_PUBLIC_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 ```
 contract/AequorModeration.py
 Network: GenLayer Studionet
-Address: 0x1dbF36ed49916947bfeFd0669dafd57aD24b37c3
+Address: 0xe7B20f682d2f2872Af73DF0CD29281175c906afc
 ```
 
 ---

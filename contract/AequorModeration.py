@@ -109,6 +109,13 @@ class AequorModeration(gl.Contract):
     cases: TreeMap[str, str]
     appeals: TreeMap[str, str]
     community_cases: TreeMap[str, str]
+    # Enumeration indexes — the contract's dict-style storage (TreeMap) has no
+    # native iteration/listing primitive, so we maintain explicit indexes
+    # alongside it: a flat list of every community ID, and a per-owner list,
+    # so the frontend can discover "what communities exist" / "what does
+    # wallet X own" without already knowing IDs out of band (e.g. localStorage).
+    all_community_ids: DynArray[str]
+    owner_communities: TreeMap[str, str]
     stats: str
 
     def __init__(self) -> None:
@@ -117,6 +124,9 @@ class AequorModeration(gl.Contract):
         self.cases = TreeMap()
         self.appeals = TreeMap()
         self.community_cases = TreeMap()
+        self.owner_communities = TreeMap()
+        # all_community_ids (DynArray[str]) is left at its zero-initialized
+        # empty default — DynArray cannot be manually instantiated in __init__.
         self.stats = to_json({
             "totalCommunities": 0,
             "totalCases": 0,
@@ -236,6 +246,11 @@ class AequorModeration(gl.Contract):
             "createdAt": utcnow(),
         }
         self.communities[community_id] = to_json(record)
+        self.all_community_ids.append(community_id)
+        owner_key = record["owner"].lower()
+        owner_ids = safe_loads(self.owner_communities.get(owner_key, "[]"), [])
+        owner_ids.append(community_id)
+        self.owner_communities[owner_key] = to_json(owner_ids)
         stats = safe_loads(self.stats, {})
         stats["totalCommunities"] = stats.get("totalCommunities", 0) + 1
         self.stats = to_json(stats)
@@ -812,6 +827,17 @@ class AequorModeration(gl.Contract):
     @gl.public.view
     def get_community(self, community_id: str) -> str:
         return self.communities.get(community_id, to_json({"error": "not found"}))
+
+    @gl.public.view
+    def list_communities(self) -> str:
+        """All registered community IDs, in registration order."""
+        return to_json([cid for cid in self.all_community_ids])
+
+    @gl.public.view
+    def get_communities_by_owner(self, owner_address: str) -> str:
+        """Community IDs owned by the given wallet, so the frontend can
+        discover a wallet's communities without already knowing their IDs."""
+        return self.owner_communities.get(owner_address.lower(), "[]")
 
     @gl.public.view
     def get_community_cases(self, community_id: str) -> str:

@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/utils/dates";
 import { generateId } from "@/lib/utils/format";
 import { nowIso } from "@/lib/utils/dates";
 import type { Community } from "@/lib/genlayer/types";
-import { Users, Plus } from "lucide-react";
+import { Users, Plus, RefreshCw } from "lucide-react";
 import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 
@@ -35,7 +35,7 @@ const STYLES = [
 ];
 
 export default function CommunitiesPage() {
-  const { communities, addCommunity, setActiveCommunityId } = useAequor();
+  const { communities, addCommunity, setActiveCommunityId, syncingCommunities, syncCommunitiesFromChain } = useAequor();
   const { address } = useWallet();
   const [showForm, setShowForm] = useState(communities.length === 0);
   const [submitting, setSubmitting] = useState(false);
@@ -91,10 +91,18 @@ export default function CommunitiesPage() {
     <AppShell title="Communities" subtitle="Register and manage community profiles">
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <div className="font-stamp text-xs uppercase tracking-widest text-muted-ink">{communities.length} communities registered</div>
-          <Button variant="lime" size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus size={14} /> New Community
-          </Button>
+          <div className="font-stamp text-xs uppercase tracking-widest text-muted-ink">
+            {communities.length} communities registered
+            {syncingCommunities && <span className="ml-2 text-signal-lime">· syncing from chain…</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => syncCommunitiesFromChain()} disabled={syncingCommunities} title="Re-fetch communities owned by this wallet from the contract">
+              <RefreshCw size={14} className={syncingCommunities ? "animate-spin" : ""} /> Sync
+            </Button>
+            <Button variant="lime" size="sm" onClick={() => setShowForm(!showForm)}>
+              <Plus size={14} /> New Community
+            </Button>
+          </div>
         </div>
 
         {showForm && (

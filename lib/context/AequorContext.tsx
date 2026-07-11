@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { ModerationCase, Community, Rulebook, AppealRecord } from "@/lib/genlayer/types";
+import { useWallet } from "@/lib/context/WalletContext";
+import { getClient } from "@/lib/genlayer/client";
+import { getContractAddress } from "@/lib/genlayer/contract";
 
 const LS = {
   cases: "aequor:cases",
@@ -41,17 +44,21 @@ interface AequorState {
   getAppealById: (id: string) => AppealRecord | undefined;
   getCommunityById: (id: string) => Community | undefined;
   getRulebookByCommunity: (id: string) => Rulebook | undefined;
+  syncingCommunities: boolean;
+  syncCommunitiesFromChain: () => Promise<void>;
 }
 
 const AequorContext = createContext<AequorState>({} as AequorState);
 
 export function AequorProvider({ children }: { children: React.ReactNode }) {
+  const { address } = useWallet();
   const [hydrated, setHydrated] = useState(false);
   const [cases, setCases] = useState<ModerationCase[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
   const [rulebooks, setRulebooks] = useState<Record<string, Rulebook>>({});
   const [appeals, setAppeals] = useState<AppealRecord[]>([]);
   const [activeCommunityId, setActiveCommunityIdRaw] = useState<string | null>(null);
+  const [syncingCommunities, setSyncingCommunities] = useState(false);
 
   // Load from localStorage once on client mount
   useEffect(() => {
@@ -81,6 +88,60 @@ export function AequorProvider({ children }: { children: React.ReactNode }) {
   const updateAppeal = useCallback((id: string, u: Partial<AppealRecord>) =>
     setAppeals((p) => p.map((a) => (a.id === id ? { ...a, ...u } : a))), []);
 
+  // The contract, not localStorage, is the source of truth for which
+  // communities a wallet owns. localStorage is only an optimistic cache for
+  // instant UI after a local write — it's reconciled against the chain here
+  // whenever the connected wallet changes, so a fresh browser (or one that
+  // never made the write itself, e.g. a community registered via a script)
+  // still shows the real on-chain state.
+  const syncCommunitiesFromChain = useCallback(async () => {
+    if (!address) return;
+    setSyncingCommunities(true);
+    try {
+      const client = getClient();
+      const contractAddr = getContractAddress();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const idsRaw = await (client as any).readContract({
+        address: contractAddr,
+        functionName: "get_communities_by_owner",
+        args: [address],
+      });
+      const ids: string[] = typeof idsRaw === "string" ? JSON.parse(idsRaw) : idsRaw || [];
+      const fetched = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const raw = await (client as any).readContract({
+              address: contractAddr,
+              functionName: "get_community",
+              args: [id],
+            });
+            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            if (!parsed || parsed.error) return null;
+            return parsed as Community;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const onChain = fetched.filter((c): c is Community => !!c);
+      if (onChain.length === 0) return;
+      setCommunities((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]));
+        for (const c of onChain) byId.set(c.id, c);
+        return Array.from(byId.values());
+      });
+    } catch (e) {
+      console.warn("[Aequor] Failed to sync communities from chain:", e);
+    } finally {
+      setSyncingCommunities(false);
+    }
+  }, [address]);
+
+  useEffect(() => {
+    if (hydrated && address) syncCommunitiesFromChain();
+  }, [hydrated, address, syncCommunitiesFromChain]);
+
   const getCaseById = useCallback((id: string) => cases.find((c) => c.id === id), [cases]);
   const getAppealById = useCallback((id: string) => appeals.find((a) => a.id === id), [appeals]);
   const getCommunityById = useCallback((id: string) => communities.find((c) => c.id === id), [communities]);
@@ -92,6 +153,7 @@ export function AequorProvider({ children }: { children: React.ReactNode }) {
       setActiveCommunityId,
       addCase, updateCase, addCommunity, addRulebook, addAppeal, updateAppeal,
       getCaseById, getAppealById, getCommunityById, getRulebookByCommunity,
+      syncingCommunities, syncCommunitiesFromChain,
     }}>
       {children}
     </AequorContext.Provider>
