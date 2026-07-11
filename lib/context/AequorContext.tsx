@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import type { ModerationCase, Community, Rulebook, Rule, AppealRecord } from "@/lib/genlayer/types";
 import { useWallet } from "@/lib/context/WalletContext";
 import { getClient } from "@/lib/genlayer/client";
@@ -33,13 +33,33 @@ function normalizeRule(id: string, raw: Record<string, unknown>): Rule {
   };
 }
 
-const LS = {
+const LS_BASE = {
   cases: "aequor:cases",
   communities: "aequor:communities",
   rulebooks: "aequor:rulebooks",
   appeals: "aequor:appeals",
   activeId: "aequor:activeId",
 };
+
+// The local cache is an optimistic-UI store for the connected wallet's own
+// recent writes, not a view of protocol-wide data (that comes from chain
+// sync below). It must be namespaced per address — otherwise a different
+// wallet connecting in the same browser inherits whatever the previous
+// wallet had cached, which looks like "reading another wallet's data".
+function lsNamespace(address: string | null): string {
+  return (address ?? "guest").toLowerCase();
+}
+
+function lsKeysFor(address: string | null) {
+  const ns = lsNamespace(address);
+  return {
+    cases: `${LS_BASE.cases}:${ns}`,
+    communities: `${LS_BASE.communities}:${ns}`,
+    rulebooks: `${LS_BASE.rulebooks}:${ns}`,
+    appeals: `${LS_BASE.appeals}:${ns}`,
+    activeId: `${LS_BASE.activeId}:${ns}`,
+  };
+}
 
 function lsGet<T>(key: string, fallback: T): T {
   try {
@@ -52,6 +72,23 @@ function lsGet<T>(key: string, fallback: T): T {
 
 function lsSet(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+function lsClearFor(address: string | null) {
+  try {
+    const keys = lsKeysFor(address);
+    for (const k of Object.values(keys)) localStorage.removeItem(k);
+  } catch { /* ignore */ }
+}
+
+// One-time cleanup: before namespacing existed, these keys held whichever
+// wallet last wrote to them, shared across every wallet in the browser.
+// They're dead now that reads/writes are namespaced — remove them so they
+// don't linger as confusing leftover data.
+function lsPurgeLegacyGlobalKeys() {
+  try {
+    for (const k of Object.values(LS_BASE)) localStorage.removeItem(k);
+  } catch { /* ignore */ }
 }
 
 interface AequorState {
@@ -86,23 +123,48 @@ export function AequorProvider({ children }: { children: React.ReactNode }) {
   const [appeals, setAppeals] = useState<AppealRecord[]>([]);
   const [activeCommunityId, setActiveCommunityIdRaw] = useState<string | null>(null);
   const [syncingCommunities, setSyncingCommunities] = useState(false);
+  const prevAddressRef = useRef<string | null | undefined>(undefined);
 
-  // Load from localStorage once on client mount
+  // Load the local optimistic cache for the connected wallet whenever the
+  // address changes (including the initial mount, and including disconnect,
+  // which transitions to the "guest" namespace). Clear the *previous*
+  // wallet's cache first — namespacing alone stops cross-wallet bleed, but
+  // wallets that are done being used shouldn't leave data sitting around
+  // either. In-memory state is reset before reloading so there's no flash
+  // of the old wallet's cached data during the switch; chain sync (below)
+  // repopulates real protocol data immediately after.
   useEffect(() => {
-    setCases(lsGet(LS.cases, []));
-    setCommunities(lsGet(LS.communities, []));
-    setRulebooks(lsGet(LS.rulebooks, {}));
-    setAppeals(lsGet(LS.appeals, []));
-    setActiveCommunityIdRaw(lsGet(LS.activeId, null));
-    setHydrated(true);
-  }, []);
+    const prevAddress = prevAddressRef.current;
+    if (prevAddress === undefined) lsPurgeLegacyGlobalKeys();
+    if (prevAddress !== undefined && prevAddress !== address) {
+      lsClearFor(prevAddress);
+    }
+    prevAddressRef.current = address;
 
-  // Persist to localStorage whenever state changes (only after hydration)
-  useEffect(() => { if (hydrated) lsSet(LS.cases, cases); }, [cases, hydrated]);
-  useEffect(() => { if (hydrated) lsSet(LS.communities, communities); }, [communities, hydrated]);
-  useEffect(() => { if (hydrated) lsSet(LS.rulebooks, rulebooks); }, [rulebooks, hydrated]);
-  useEffect(() => { if (hydrated) lsSet(LS.appeals, appeals); }, [appeals, hydrated]);
-  useEffect(() => { if (hydrated) lsSet(LS.activeId, activeCommunityId); }, [activeCommunityId, hydrated]);
+    setHydrated(false);
+    setCases([]);
+    setCommunities([]);
+    setRulebooks({});
+    setAppeals([]);
+    setActiveCommunityIdRaw(null);
+
+    const keys = lsKeysFor(address);
+    setCases(lsGet(keys.cases, []));
+    setCommunities(lsGet(keys.communities, []));
+    setRulebooks(lsGet(keys.rulebooks, {}));
+    setAppeals(lsGet(keys.appeals, []));
+    setActiveCommunityIdRaw(lsGet(keys.activeId, null));
+    setHydrated(true);
+  }, [address]);
+
+  // Persist to localStorage whenever state changes (only after hydration),
+  // scoped to the currently connected wallet's namespace.
+  const lsKeys = lsKeysFor(address);
+  useEffect(() => { if (hydrated) lsSet(lsKeys.cases, cases); }, [cases, hydrated, lsKeys.cases]);
+  useEffect(() => { if (hydrated) lsSet(lsKeys.communities, communities); }, [communities, hydrated, lsKeys.communities]);
+  useEffect(() => { if (hydrated) lsSet(lsKeys.rulebooks, rulebooks); }, [rulebooks, hydrated, lsKeys.rulebooks]);
+  useEffect(() => { if (hydrated) lsSet(lsKeys.appeals, appeals); }, [appeals, hydrated, lsKeys.appeals]);
+  useEffect(() => { if (hydrated) lsSet(lsKeys.activeId, activeCommunityId); }, [activeCommunityId, hydrated, lsKeys.activeId]);
 
   const setActiveCommunityId = useCallback((id: string) => setActiveCommunityIdRaw(id), []);
   const addCase = useCallback((c: ModerationCase) => setCases((p) => [c, ...p]), []);
