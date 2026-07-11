@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAequor } from "@/lib/context/AequorContext";
 import { useWallet } from "@/lib/context/WalletContext";
@@ -36,6 +36,14 @@ export default function RulebooksPage() {
   const [error, setError] = useState<string | null>(null);
   const [newRule, setNewRule] = useState<Omit<Rule, "id">>({ ...EMPTY_RULE });
   const [selectedCommunity, setSelectedCommunity] = useState(activeCommunityId ?? communities[0]?.id ?? "");
+
+  // Communities load asynchronously from chain, so the initial state above
+  // is often empty on first render — pick a default once real data arrives.
+  useEffect(() => {
+    if (!selectedCommunity && communities.length > 0) {
+      setSelectedCommunity(activeCommunityId ?? communities[0].id);
+    }
+  }, [communities, selectedCommunity, activeCommunityId]);
 
   const currentRulebook = rulebooks[selectedCommunity];
   const rules = currentRulebook ? Object.values(currentRulebook.rulebook) : [];

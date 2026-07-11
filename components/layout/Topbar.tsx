@@ -1,9 +1,10 @@
 "use client";
 
 import { useWallet } from "@/lib/context/WalletContext";
+import { useAequor } from "@/lib/context/AequorContext";
 import { shortAddress } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
-import { Wallet, Zap } from "lucide-react";
+import { Wallet, Zap, RefreshCw } from "lucide-react";
 
 interface TopbarProps {
   title: string;
@@ -12,6 +13,7 @@ interface TopbarProps {
 
 export function Topbar({ title, subtitle }: TopbarProps) {
   const { address, isConnecting, connect, disconnect } = useWallet();
+  const { syncingCommunities, syncCommunitiesFromChain } = useAequor();
 
   return (
     <header className="h-14 border-b-2 border-ink bg-canvas flex items-center justify-between px-6 shrink-0">
@@ -24,6 +26,16 @@ export function Topbar({ title, subtitle }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => syncCommunitiesFromChain()}
+          disabled={syncingCommunities}
+          title="Re-fetch communities, rulebooks, cases, and appeals from the contract"
+        >
+          <RefreshCw size={14} className={syncingCommunities ? "animate-spin" : ""} />
+          {syncingCommunities ? "Syncing…" : "Sync"}
+        </Button>
         {address ? (
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 border-2 border-success-green bg-panel-cream px-2.5 py-1">

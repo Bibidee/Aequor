@@ -11,7 +11,7 @@ import { Eye } from "lucide-react";
 const COLORS = ["#C7372F", "#2E9D68", "#8B8A84", "#7A3FFC", "#FF6B4A"];
 
 export default function TransparencyPage() {
-  const { cases, appeals } = useAequor();
+  const { cases, appeals, communities } = useAequor();
 
   const total = cases.length;
   const ruled = cases.filter((c) => c.verdict).length;
@@ -66,7 +66,7 @@ export default function TransparencyPage() {
           <StatCard label="Human Escalations" value={escalations} accent={escalations > 0 ? "coral" : "default"} />
           <StatCard label="Policy Ambiguity" value={ambiguous} accent={ambiguous > 0 ? "purple" : "default"} />
           <StatCard label="Total Appeals" value={appealCount} accent="purple" />
-          <StatCard label="Total Communities" value={1} accent="default" />
+          <StatCard label="Total Communities" value={communities.length} accent="default" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
