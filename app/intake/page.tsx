@@ -198,7 +198,7 @@ export default function IntakePage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Hash size={12} className="text-muted-ink shrink-0" />
-                  <Textarea value={form.evidenceText1} onChange={(e) => setForm({ ...form, evidenceText1: e.target.value })} rows={2} placeholder="Evidence item 1 — paste text, URLs, or identifiers to hash" className="flex-1" />
+                  <Textarea value={form.evidenceText1} onChange={(e) => setForm({ ...form, evidenceText1: e.target.value })} rows={2} placeholder="Evidence item 1 — a URL will be fetched and hash-verified by GenLayer; free text is hashed locally only" className="flex-1" />
                 </div>
                 <div className="flex items-center gap-2">
                   <Hash size={12} className="text-muted-ink shrink-0" />

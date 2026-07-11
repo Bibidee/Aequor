@@ -19,6 +19,8 @@ export interface CaseFormData {
   rawEvidenceTexts: string[];
 }
 
+const URL_PATTERN = /^https?:\/\/\S+$/i;
+
 export async function buildCasePacket(
   caseId: string,
   form: CaseFormData
@@ -26,6 +28,15 @@ export async function buildCasePacket(
   const evidenceHashes = await Promise.all(
     form.rawEvidenceTexts.map((e) => hashString(e))
   );
+
+  // Evidence entries that are bare URLs get passed to the contract as
+  // evidenceItems so GenLayer can independently fetch and hash-verify the
+  // actual page content, instead of trusting the party's claimed summary.
+  // We do not pre-compute a "claimed hash" for URLs — the contract's first
+  // successful fetch becomes the canonical, on-chain-verified hash.
+  const evidenceItems = form.rawEvidenceTexts
+    .filter((e) => URL_PATTERN.test(e.trim()))
+    .map((url) => ({ url: url.trim(), hash: "" }));
 
   const packet: CasePacket = {
     caseId,
@@ -39,6 +50,7 @@ export async function buildCasePacket(
     contextSummary: form.contextSummary,
     priorActionSummary: form.priorActionSummary,
     evidenceHashes,
+    evidenceItems,
     requestedAction: form.requestedAction,
     localeContext: form.localeContext || "English",
     respondentDiscord: form.respondentDiscord,

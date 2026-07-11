@@ -111,6 +111,7 @@ export interface CasePacket {
   contextSummary: string;
   priorActionSummary: string;
   evidenceHashes: string[];
+  evidenceItems?: { url: string; hash: string }[];
   requestedAction: string;
   localeContext: string;
   respondentDiscord: string;
