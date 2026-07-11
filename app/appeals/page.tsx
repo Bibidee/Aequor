@@ -26,7 +26,7 @@ const OUTCOMES = [
 ];
 
 function AppealsInner() {
-  const { cases, appeals, addAppeal, updateAppeal, updateCase, getCaseById } = useAequor();
+  const { cases, appeals, addAppeal, updateAppeal, updateCase, getCaseById, getCommunityById } = useAequor();
   const { address } = useWallet();
   const searchParams = useSearchParams();
   const prefilledCaseId = searchParams.get("caseId") ?? "";
@@ -235,10 +235,15 @@ function AppealsInner() {
                       <div className="text-xs text-muted-ink font-body">{timeAgo(a.submittedAt)}</div>
                     </div>
                     {a.status === "SUBMITTED" && (() => {
+                      // review_appeal is owner-gated on-chain (contract's
+                      // _require_owner), not complainant-gated — a
+                      // complainant's tx would revert silently, so this
+                      // must check the case's community owner.
                       const appealCase = getCaseById(a.caseId);
-                      const isComplainant = appealCase?.complainantWallet &&
-                        address?.toLowerCase() === appealCase.complainantWallet.toLowerCase();
-                      if (!isComplainant) return null;
+                      const community = appealCase ? getCommunityById(appealCase.communityId) : undefined;
+                      const isOwner = !!(community?.owner && address &&
+                        community.owner.toLowerCase() === address.toLowerCase());
+                      if (!isOwner) return null;
                       return (
                         <Button variant="outline" size="sm" onClick={() => handleReviewAppeal(a.id)} disabled={reviewingId === a.id} className="border-appeal-purple text-appeal-purple shrink-0">
                           {reviewingId === a.id ? "Reviewing…" : "GenLayer Review"}

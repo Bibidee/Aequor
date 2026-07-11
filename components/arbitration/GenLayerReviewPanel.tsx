@@ -12,7 +12,9 @@ import { waitForTxFinality } from "@/lib/genlayer/txWaiter";
 import { readCaseFromContract } from "@/lib/genlayer/contractReader";
 import { normalizeVerdict } from "@/lib/genlayer/normalizeVerdict";
 import { actionLabel } from "@/lib/utils/format";
-import { Zap, AlertTriangle } from "lucide-react";
+import { useAequor } from "@/lib/context/AequorContext";
+import { useWallet } from "@/lib/context/WalletContext";
+import { Zap, AlertTriangle, Lock } from "lucide-react";
 
 const LS_PREFIX = "aequor:reviewTx:";
 
@@ -32,8 +34,16 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
   const [txHash, setTxHash] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const pollingRef = useRef(false);
+  const { getCommunityById } = useAequor();
+  const { address } = useWallet();
 
   const alreadyRuled = !!verdict;
+  const community = getCommunityById(case_.communityId);
+  // review_case is owner-gated on-chain (contract/AequorModeration.py
+  // _require_owner) — a non-owner's transaction is silently accepted but
+  // reverts the state change, so gate it here too rather than let people
+  // click a button that will never do anything.
+  const isOwner = !!(community?.owner && address && community.owner.toLowerCase() === address.toLowerCase());
 
   const pollContractForVerdict = useCallback(async () => {
     if (pollingRef.current) return;
@@ -135,7 +145,7 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
         txHash={txHash}
       />
 
-      {!alreadyRuled && status === "idle" && (
+      {!alreadyRuled && status === "idle" && isOwner && (
         <div className="flex items-center justify-between p-4 border-2 border-judgement-blue bg-panel-cream">
           <div>
             <div className="font-stamp text-xs uppercase tracking-widest text-judgement-blue mb-1">GenLayer Review Ready</div>
@@ -145,6 +155,18 @@ export function GenLayerReviewPanel({ case_, onVerdictReceived, onReviewStarted 
             <Zap size={14} />
             Start Review
           </Button>
+        </div>
+      )}
+
+      {!alreadyRuled && status === "idle" && !isOwner && (
+        <div className="flex items-center gap-3 p-4 border-2 border-border-ink bg-panel-cream">
+          <Lock size={16} className="text-muted-ink shrink-0" />
+          <div className="text-sm font-body text-muted-ink">
+            Only the community owner
+            {community?.owner ? <span className="font-mono text-xs"> ({community.owner.slice(0, 6)}…{community.owner.slice(-4)})</span> : ""}
+            {" "}can trigger a GenLayer review for this case.
+            {!address && " Connect that wallet to continue."}
+          </div>
         </div>
       )}
 

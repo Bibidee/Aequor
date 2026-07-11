@@ -12,7 +12,7 @@ import type { Rule, Rulebook } from "@/lib/genlayer/types";
 import { generateId } from "@/lib/utils/format";
 import { nowIso } from "@/lib/utils/dates";
 import { hashEvidencePacket } from "@/lib/aequor/evidenceHasher";
-import { Plus, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, BookOpen, ChevronDown, ChevronRight, Lock } from "lucide-react";
 import { getClientReady } from "@/lib/genlayer/client";
 import { getContractAddress } from "@/lib/genlayer/contract";
 
@@ -47,10 +47,16 @@ export default function RulebooksPage() {
 
   const currentRulebook = rulebooks[selectedCommunity];
   const rules = currentRulebook ? Object.values(currentRulebook.rulebook) : [];
+  const selectedCommunityObj = communities.find((c) => c.id === selectedCommunity);
+  // register_rulebook is owner-gated on-chain — a non-owner's transaction
+  // is silently accepted but reverts the state change, so gate the form
+  // here too instead of letting anyone submit a rule that will never land.
+  const isOwner = !!(selectedCommunityObj?.owner && address && selectedCommunityObj.owner.toLowerCase() === address.toLowerCase());
 
   const handleAddRule = async () => {
     if (!newRule.title || !selectedCommunity) return;
     if (!address) { setError("Connect your wallet to register a rulebook on-chain."); return; }
+    if (!isOwner) { setError("Only the community owner can register rulebook changes."); return; }
     setSubmitting(true);
     const id = generateId("rule").replace("rule_", "").replace(/_/g, ".");
     const rule: Rule = { ...newRule, id };
@@ -107,10 +113,20 @@ export default function RulebooksPage() {
           >
             {communities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <Button variant="lime" size="sm" onClick={() => setShowRuleForm(!showRuleForm)}>
+          <Button variant="lime" size="sm" onClick={() => setShowRuleForm(!showRuleForm)} disabled={!isOwner} title={!isOwner ? "Only the community owner can edit this rulebook" : undefined}>
             <Plus size={14} /> Add Rule
           </Button>
         </div>
+
+        {!isOwner && selectedCommunityObj && (
+          <div className="flex items-center gap-3 p-3 border-2 border-border-ink bg-panel-cream">
+            <Lock size={14} className="text-muted-ink shrink-0" />
+            <div className="text-sm font-body text-muted-ink">
+              Only <span className="font-mono text-xs">{selectedCommunityObj.owner.slice(0, 6)}…{selectedCommunityObj.owner.slice(-4)}</span> can edit {selectedCommunityObj.name}&rsquo;s rulebook.
+              {!address && " Connect that wallet to make changes."}
+            </div>
+          </div>
+        )}
 
         {currentRulebook && (
           <div className="flex items-center gap-2 border border-border-ink p-2 bg-panel-cream">
@@ -119,7 +135,7 @@ export default function RulebooksPage() {
           </div>
         )}
 
-        {showRuleForm && (
+        {showRuleForm && isOwner && (
           <Card variant="lime-accent">
             <CardHeader><span className="font-stamp text-xs uppercase tracking-widest">New Rule</span></CardHeader>
             <CardBody className="space-y-4">
